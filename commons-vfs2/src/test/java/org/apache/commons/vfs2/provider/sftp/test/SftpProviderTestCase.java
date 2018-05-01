@@ -384,12 +384,13 @@ public class SftpProviderTestCase extends AbstractProviderTestConfig {
             builder.setProxyUser(fileSystemOptions, userFields[0]);
             if (userFields.length > 1) {
                 builder.setProxyPassword(fileSystemOptions, userFields[1]);
+            } else {
+                builder.setProxyPassword(fileSystemOptions, parsedURI.getAuthority());
             }
             builder.setProxyHost(fileSystemOptions, parsedURI.getHost());
             builder.setProxyPort(fileSystemOptions, parsedURI.getPort());
             builder.setProxyCommand(fileSystemOptions, SftpStreamProxy.NETCAT_COMMAND);
             builder.setProxyOptions(fileSystemOptions, proxyOptions);
-            builder.setProxyPassword(fileSystemOptions, parsedURI.getAuthority());
 
             // Set up the new URI
             uri = String.format("sftp://%s@localhost:%d", userInfo, parsedURI.getPort());

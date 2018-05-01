@@ -165,7 +165,7 @@ public class SftpProviderTestCase extends AbstractProviderTestConfig {
 
     private static final String DEFAULT_USER = "testtest";
 
-    // private static final String DEFAULT_PWD = "testtest";
+    private static final String DEFAULT_PWD = "testtest";
 
     private static String ConnectionUri;
 
@@ -189,7 +189,7 @@ public class SftpProviderTestCase extends AbstractProviderTestConfig {
     private static void setUpClass() throws FtpException, IOException {
         SocketPort = FreeSocketPortUtil.findFreeLocalPort();
         // Use %40 for @ in a URL
-        ConnectionUri = String.format("sftp://%s@localhost:%d", DEFAULT_USER, SocketPort);
+        ConnectionUri = String.format("sftp://%s:%s@localhost:%d", DEFAULT_USER, DEFAULT_PWD, SocketPort);
 
         if (Server != null) {
             return;
@@ -227,7 +227,7 @@ public class SftpProviderTestCase extends AbstractProviderTestConfig {
         Server.setPasswordAuthenticator(new PasswordAuthenticator() {
             @Override
             public boolean authenticate(final String username, final String password, final ServerSession session) {
-                return username != null && username.equals(password);
+                return username != null && password != null && username.equals(DEFAULT_USER) && password.equals(DEFAULT_PWD);
             }
         });
         Server.setPublickeyAuthenticator(new PublickeyAuthenticator() {

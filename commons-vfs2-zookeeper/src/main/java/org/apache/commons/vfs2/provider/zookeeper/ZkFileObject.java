@@ -18,9 +18,11 @@
 package org.apache.commons.vfs2.provider.zookeeper;
 
 import java.io.ByteArrayInputStream;
-import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.List;
+import java.util.Objects;
+
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileType;
 import org.apache.commons.vfs2.provider.AbstractFileName;
@@ -29,92 +31,90 @@ import org.apache.commons.vfs2.provider.UriParser;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.data.Stat;
 
-public class ZkFileObject extends AbstractFileObject<ZkFileSystem>{
-    private CuratorFramework framework;
-    private String path;
-    private Stat stat;
+public class ZkFileObject extends AbstractFileObject<ZkFileSystem> {
 
-    protected ZkFileObject(final AbstractFileName name, final ZkFileSystem fileSystem,
-                           final CuratorFramework framework, final String path) {
-        super(name, fileSystem);
-        this.framework = framework;
-        this.path = path;
-    }
-    @Override
-    protected long doGetContentSize() throws Exception {
-        return this.stat.getDataLength();
-    }
+  private CuratorFramework framework;
+  private String path;
+  private Stat stat;
 
-    @Override
-    protected InputStream doGetInputStream() throws Exception {
-        if (this.stat == null) {
-            throw new FileSystemException("vfs.provider/read-not-file.error", getName());
-        }
+  protected ZkFileObject(final AbstractFileName name,
+      final ZkFileSystem fileSystem, final CuratorFramework framework,
+      final String path) {
+    super(name, fileSystem);
+    this.framework = Objects.requireNonNull(framework);
+    this.path = Objects.requireNonNull(path);
+  }
 
-        if (this.stat.getDataLength() == 0) {
-            return new ByteArrayInputStream(new byte[]{});
-        }
-        return new ByteArrayInputStream(framework.getData().forPath(this.path));
+  @Override
+  protected long doGetContentSize() throws Exception {
+    return this.stat.getDataLength();
+  }
+
+  @Override
+  protected InputStream doGetInputStream() throws Exception {
+    if (this.stat == null) {
+      throw new FileSystemException("vfs.provider/read-not-file.error",
+          getName());
     }
 
-    @Override
-    protected FileType doGetType() throws Exception {
-        if (this.stat == null) {
-            return FileType.IMAGINARY;
-        }
-        return FileType.FILE_OR_FOLDER;
+    final byte[] data = (this.stat.getDataLength() == 0) ? new byte[0]
+        : framework.getData().forPath(this.path);
+    return new ByteArrayInputStream(data);
+  }
+  
+  @Override
+  protected FileType doGetType() throws Exception {
+    return (this.stat == null) ? FileType.IMAGINARY : FileType.FILE_OR_FOLDER;
+  }
+
+  /**
+   * Checks if this file is a folder by using its file type. ZooKeeper nodes can
+   * always be considered as folders or files.
+   *
+   * @return true if this file is a regular file.
+   * @throws FileSystemException if an error occurs.
+   * @see #getType()
+   * @see FileType#FOLDER
+   */
+  @Override
+  public boolean isFolder() throws FileSystemException {
+    return true;
+  }
+
+  @Override
+  protected String[] doListChildren() throws Exception {
+    if (this.stat == null || this.stat.getNumChildren() == 0) {
+      return new String[0];
     }
 
-    /**
-     * Checks if this file is a folder by using its file type.
-     *
-     * @return true if this file is a regular file.
-     * @throws FileSystemException if an error occurs.
-     * @see #getType()
-     * @see FileType#FOLDER
-     */
-    @Override
-    public boolean isFolder() throws FileSystemException {
-        return true;
-    }
+    List<String> children = framework.getChildren().forPath(this.path);
+    return UriParser.encode(children.toArray(new String[0]));
+  }
 
-    @Override
-    protected String[] doListChildren() throws Exception {
-        if(this.stat == null || this.stat.getNumChildren() == 0) {
-            return new String[0];
-        }
-
-        List<String> children = framework.getChildren().forPath(this.path);
-        return UriParser.encode(children.toArray(new String[]{}));
+  @Override
+  protected void doAttach() throws Exception {
+    try {
+      this.stat = this.framework.checkExists().forPath(this.path);
+    } catch (final Exception e) {
+      this.stat = null;
     }
+  }
 
-    /**
-     * @see org.apache.commons.vfs2.provider.AbstractFileObject#doAttach()
-     */
-    @Override
-    protected void doAttach() throws Exception {
-        try {
-            this.stat = this.framework.checkExists().forPath(this.path);
-        } catch (final Exception e) {
-            this.stat = null;
-            return;
-        }
+  /**
+   * Determines if the file exists.
+   *
+   * @see org.apache.commons.vfs2.provider.AbstractFileObject#exists()
+   * @return boolean true if file exists, false if not
+   */
+  @Override
+  public boolean exists() throws FileSystemException {
+    try {
+      doAttach();
+      return this.stat != null;
+    } catch (final Exception e) {
+      throw new FileSystemException("Unable to check existance: {}", getName(),
+          e);
     }
-
-    /**
-     * @see org.apache.commons.vfs2.provider.AbstractFileObject#exists()
-     * @return boolean true if file exists, false if not
-     */
-    @Override
-    public boolean exists() throws FileSystemException {
-        try {
-            doAttach();
-            return this.stat != null;
-        } catch (final FileNotFoundException fne) {
-            return false;
-        } catch (final Exception e) {
-            throw new FileSystemException("Unable to check existance ", e);
-        }
-    }
+  }
 
 }

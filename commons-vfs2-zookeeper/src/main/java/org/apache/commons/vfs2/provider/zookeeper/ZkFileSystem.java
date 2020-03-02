@@ -17,12 +17,12 @@
 
 package org.apache.commons.vfs2.provider.zookeeper;
 
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import java.util.Objects;
+
 import org.apache.commons.vfs2.Capability;
 import org.apache.commons.vfs2.FileName;
 import org.apache.commons.vfs2.FileObject;
@@ -33,63 +33,68 @@ import org.apache.commons.vfs2.provider.AbstractFileSystem;
 import org.apache.curator.framework.CuratorFramework;
 
 public class ZkFileSystem extends AbstractFileSystem {
-    private static final Log log = LogFactory.getLog(ZkFileSystem.class);
-    private CuratorFramework framework;
-    private boolean ownsClient = false;
 
-    protected ZkFileSystem(final FileName rootName, final CuratorFramework framework, final FileSystemOptions fileSystemOptions) {
-        super(rootName, null, fileSystemOptions);
-        this.framework = framework;
-        this.ownsClient = ZkFileSystemConfigBuilder.getInstance().getOwnsClient(fileSystemOptions);
+  private CuratorFramework framework;
+  private boolean ownsClient = false;
+
+  protected ZkFileSystem(final FileName rootName,
+      final CuratorFramework framework,
+      final FileSystemOptions fileSystemOptions) {
+    super(rootName, null, fileSystemOptions);
+    this.framework = Objects.requireNonNull(framework);
+    this.ownsClient = ZkFileSystemConfigBuilder.getInstance()
+        .getOwnsClient(fileSystemOptions);
+  }
+
+  @Override
+  protected void doCloseCommunicationLink() {
+    if (framework != null && ownsClient) {
+      framework.close();
+      framework = null;
+    }
+  }
+
+  @Override
+  protected FileObject createFile(AbstractFileName name) throws Exception {
+    return null;
+  }
+
+  /**
+   * Resolve FileName into FileObject.
+   *
+   * @param name The name of a file on the HdfsFileSystem.
+   * @return resolved FileObject.
+   * @throws FileSystemException if an error occurred.
+   */
+  @Override
+  public FileObject resolveFile(final FileName name)
+      throws FileSystemException {
+    final boolean useCache =
+        null != getContext().getFileSystemManager().getFilesCache();
+
+    FileObject fileObject = null;
+    if (useCache) {
+      fileObject = getFileFromCache(name);
     }
 
-    @Override
-    protected void doCloseCommunicationLink() {
-        if (framework != null && ownsClient) {
-            framework.close();
-            framework = null;
-        }
+    if (fileObject == null) {
+      String path = null;
+      try {
+        path = URLDecoder.decode(name.getPath(), StandardCharsets.UTF_8.name());
+      } catch (final UnsupportedEncodingException e) {
+        path = name.getPath();
+      }
+      fileObject =
+          new ZkFileObject((AbstractFileName) name, this, framework, path);
     }
-
-    @Override
-    protected FileObject createFile(AbstractFileName name) throws Exception {
-        return null;
+    if (useCache) {
+      this.putFileToCache(fileObject);
     }
+    return fileObject;
+  }
 
-    /**
-     * Resolve FileName into FileObject.
-     *
-     * @param name The name of a file on the HdfsFileSystem.
-     * @return resolved FileObject.
-     * @throws FileSystemException if an error occurred.
-     */
-    @Override
-    public FileObject resolveFile(final FileName name) throws FileSystemException {
-        final boolean useCache = null != getContext().getFileSystemManager().getFilesCache();
-        FileObject fileObject;
-        if(useCache) {
-            fileObject = getFileFromCache(name);
-        } else {
-            fileObject = null;
-        }
-
-        if (fileObject == null) {
-            String path = null;
-            try {
-                path = URLDecoder.decode(name.getPath(), "UTF-8");
-            } catch (final UnsupportedEncodingException e) {
-                path = name.getPath();
-            }
-            fileObject = new ZkFileObject((AbstractFileName)name, this, framework, path);
-        }
-        if (useCache) {
-            this.putFileToCache(fileObject);
-        }
-        return fileObject;
-    }
-
-    @Override
-    protected void addCapabilities(Collection<Capability> caps) {
-        caps.addAll(ZkFileProvider.CAPABILITIES);
-    }
+  @Override
+  protected void addCapabilities(Collection<Capability> caps) {
+    caps.addAll(ZkFileProvider.CAPABILITIES);
+  }
 }

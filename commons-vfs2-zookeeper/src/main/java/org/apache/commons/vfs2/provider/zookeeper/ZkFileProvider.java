@@ -20,72 +20,80 @@ package org.apache.commons.vfs2.provider.zookeeper;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.vfs2.Capability;
 import org.apache.commons.vfs2.FileName;
 import org.apache.commons.vfs2.FileSystem;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemOptions;
 import org.apache.commons.vfs2.provider.AbstractOriginatingFileProvider;
-import org.apache.commons.vfs2.provider.url.UrlFileNameParser;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.CuratorFrameworkFactory.Builder;
 
 public class ZkFileProvider extends AbstractOriginatingFileProvider {
-    static final Collection<Capability> CAPABILITIES = Collections
-        .unmodifiableCollection(Arrays.asList( Capability.GET_TYPE, Capability.READ_CONTENT,
-            Capability.URI, Capability.WRITE_CONTENT,/*Capability.GET_LAST_MODIFIED,*/ /*Capability.ATTRIBUTES,*/ /*Capability.RANDOM_ACCESS_READ,*/
-            Capability.DIRECTORY_READ_CONTENT, Capability.LIST_CHILDREN ));
+  static final Collection<Capability> CAPABILITIES =
+      Collections.unmodifiableCollection(Arrays.asList(Capability.GET_TYPE,
+          Capability.READ_CONTENT, Capability.URI, Capability.WRITE_CONTENT,
+          Capability.DIRECTORY_READ_CONTENT, Capability.LIST_CHILDREN));
 
-    public ZkFileProvider() {
-        super();
-    }
+  public ZkFileProvider() {
+    super();
+  }
 
-    @Override
-    protected FileSystem doCreateFileSystem(FileName rootName, FileSystemOptions fileSystemOptions)
-        throws FileSystemException {
-        ZkFileSystemConfigBuilder configBuilder = ZkFileSystemConfigBuilder.getInstance();
+  @Override
+  protected FileSystem doCreateFileSystem(FileName rootName,
+      FileSystemOptions fileSystemOptions) throws FileSystemException {
+    ZkFileSystemConfigBuilder configBuilder =
+        ZkFileSystemConfigBuilder.getInstance();
 
-        // did the caller provide a curator framework?
-        CuratorFramework framework = configBuilder.getCuratorFramework(fileSystemOptions);
-        if (framework == null) {
-            String connectionString = configBuilder.getZkConnectionSring(fileSystemOptions);
-            RetryPolicy retryPolicy = configBuilder.getRetryPolicy(fileSystemOptions);
-            String namespace = configBuilder.getZkNamespace(fileSystemOptions);
-            int connectionTimeout = configBuilder.getConnectionTimeout(fileSystemOptions);
-            int sessionTimeout = configBuilder.getSessionTimeout(fileSystemOptions);
+    // did the caller provide a curator framework?
+    CuratorFramework framework =
+        configBuilder.getCuratorFramework(fileSystemOptions);
+    if (framework == null) {
+      String connectionString =
+          configBuilder.getZkConnectionSring(fileSystemOptions);
+      RetryPolicy retryPolicy = configBuilder.getRetryPolicy(fileSystemOptions);
+      String namespace = configBuilder.getZkNamespace(fileSystemOptions);
+      int connectionTimeout =
+          configBuilder.getConnectionTimeout(fileSystemOptions);
+      int sessionTimeout = configBuilder.getSessionTimeout(fileSystemOptions);
 
-            Builder builder = CuratorFrameworkFactory.builder();
+      Builder builder = CuratorFrameworkFactory.builder();
 
-            builder = builder.connectString(connectionString).retryPolicy(retryPolicy)
-                .connectionTimeoutMs(connectionTimeout).sessionTimeoutMs(sessionTimeout);
+      builder = builder.connectString(connectionString).retryPolicy(retryPolicy)
+          .connectionTimeoutMs(connectionTimeout)
+          .sessionTimeoutMs(sessionTimeout);
 
-            if (namespace != null) {
-                builder = builder.namespace(namespace);
-            }
+      if (namespace != null) {
+        builder = builder.namespace(namespace);
+      }
 
-            if( configBuilder.getZkAuthScheme(fileSystemOptions) != null) {
-                byte[] bytes  = configBuilder.getZkAuthBytes(fileSystemOptions);
-                if(bytes == null || bytes.length == 0) {
-                    throw new FileSystemException("vfs.provider.zk/authBytes", "missing auth bytes");
-                }
-                builder = builder.authorization(configBuilder.getZkAuthScheme(fileSystemOptions),
-                                      bytes);
-            }
-
-            framework = builder.build();
-            framework.start();
-            configBuilder.setOwnsClient(fileSystemOptions, true);
-        } else {
-            configBuilder.setOwnsClient(fileSystemOptions, false);
+      if (configBuilder.getZkAuthScheme(fileSystemOptions) != null) {
+        byte[] bytes = configBuilder.getZkAuthBytes(fileSystemOptions);
+        if (ArrayUtils.isEmpty(bytes)) {
+          throw new FileSystemException("vfs.provider.zk/authBytes",
+              "missing auth bytes");
         }
+        builder = builder.authorization(
+            configBuilder.getZkAuthScheme(fileSystemOptions), bytes);
+      }
 
-        return new ZkFileSystem(rootName, framework, fileSystemOptions);
+      framework = builder.build();
+      framework.start();
+
+      configBuilder.setOwnsClient(fileSystemOptions, true);
+    } else {
+      configBuilder.setOwnsClient(fileSystemOptions, false);
     }
 
-    @Override
-    public Collection<Capability> getCapabilities() {
-        return CAPABILITIES;
-    }
+    return new ZkFileSystem(rootName, framework, fileSystemOptions);
+  }
+
+  @Override
+  public Collection<Capability> getCapabilities() {
+    return CAPABILITIES;
+  }
 }

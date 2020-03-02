@@ -32,6 +32,21 @@
   <artifactId>commons-vfs2-zookeeper</artifactId>
   <description>Apache Commons VFS is a Virtual File System library - Zookeeper-based provider.</description>
 
+  <dependencyManagement>
+    <dependencies>
+    <dependency>
+      <groupId>org.apache.curator</groupId>
+      <artifactId>curator-client</artifactId>
+      <version>${curator-version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.curator</groupId>
+      <artifactId>curator-recipes</artifactId>
+      <version>${curator-version}</version>
+    </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
 
     <dependency>
